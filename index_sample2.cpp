@@ -10,7 +10,7 @@ using namespace std;
 
 int main(){
 	int cnt;
-	char outfile[] = "helloworld_cversion/sample2/sample2.nes";
+	char outfile[] = "sample2.nes";
 		ifstream fin(outfile, ios::in | ios::binary);
 		//ファイルを開く
 		//ios::は読み込み専用を示す
