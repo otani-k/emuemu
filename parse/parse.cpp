@@ -19,7 +19,7 @@ vector<u8> pROM;
 vector<u8> cROM;
 vector<u8> cpu_mem(0xffff, 0); */
 
-int parse(int& cnt, int& prom_size, int& crom_size, char outfile[], vector<u8>& pROM, vector<u8>& cROM, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
+int myparse(int& cnt, int& prom_size, int& crom_size, char outfile[], vector<u8>& pROM, vector<u8>& cROM, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
 	u8 d;//文字列でないデータ（double型である理由はよくわからん）→  結局charにした
 	//u8 v = 0;
 	ifstream fin(outfile, ios::in | ios::binary);

@@ -13,7 +13,7 @@
 using namespace std;
 typedef unsigned char u8;
 
-int parse(int& cnt, int& prom_size, int& crom_size, char outfile[], vector<u8>& pROM, vector<u8>& cROM, vector<u8>& cpu_mem, vector<u8>& ppu_mem);
+int myparse(int& cnt, int& prom_size, int& crom_size, char outfile[], vector<u8>& pROM, vector<u8>& cROM, vector<u8>& cpu_mem, vector<u8>& ppu_mem);
 
 
 
