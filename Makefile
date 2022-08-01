@@ -1,18 +1,16 @@
-CC = g++
-CFLAGS = -Wall
+FILES := parse/parse.cpp ppu/ppu.cpp main.cpp
+CXXFLAGS = -Wall -std=c++11 
+LDLIBS = -lGL \
+        -lglfw
+OBJECTS = $(patsubst %.cpp,%.o,$(FILES))
 TARGET = emu
-SRCS = parse/parse.cpp
-SRCS += ppu/ppu.cpp
-SRCS += main.cpp
 
-OBJS = $(SRCS:.cpp=.o)
 
-$(TARGET): $(OBJS)
-$(OBJS): $(SRCS)
-	$(CC) $(CFLAGS) $(SRCS)
+${TARGET} : ${OBJECTS}
+	${LINK.cc} $^ ${LOADLIBES} ${LDLIBS} -o $@
 
-all: clean $(OBJS) $(TARGET)
+.PHONY : clean
+clean :
+	-${RM} ${TARGET} ${OBJECTS} *~ .*~ core
 
-clean:
-	-rm -f $(OBJS) $(TARGET) *.d
 
