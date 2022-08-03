@@ -1,7 +1,6 @@
 FILES := parse/parse.cpp ppu/ppu.cpp main.cpp
 CXXFLAGS = -Wall -std=c++11 
-LDLIBS = -lGL \
-        -lglfw
+LDLIBS = -lGL -lglfw
 OBJECTS = $(patsubst %.cpp,%.o,$(FILES))
 TARGET = emu
 

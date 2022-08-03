@@ -1,14 +1,11 @@
 #pragma once
 
-#include <iostream>
+//#include <iostream>
 #include <string>
+#include <iostream>
 #include <vector>
 
 using namespace std;
-
-typedef unsigned char u8;
-typedef unsigned short int u16;
-
 
 const vector<vector<int>> colors = {
     {0x80, 0x80, 0x80}, {0x00, 0x3D, 0xA6}, {0x00, 0x12, 0xB0}, {0x44, 0x00, 0x96},
@@ -29,6 +26,9 @@ const vector<vector<int>> colors = {
     {0x99, 0xFF, 0xFC}, {0xDD, 0xDD, 0xDD}, {0x11, 0x11, 0x11}, {0x11, 0x11, 0x11},
  };
 
+typedef unsigned char u8;
+typedef unsigned short int u16;
+
 void ppu_addr(vector<u8>& cpu_mem, struct Register& reg, u8& num);
 
 u16 ppu_addr_create(vector<u8>& cpu_mem, vector<u8>& ppu_mem);
@@ -38,6 +38,3 @@ void ppu_addr_incl(u16& ppu_mem_addr, vector<u8>& cpu_mem);
 void ppu_read(vector<u8>& cpu_mem, vector<u8>& ppu_mem, u8& num);
 
 void ppu_write(vector<u8>& cpu_mem, vector<u8>& ppu_mem, u8& num);
-
-
-
