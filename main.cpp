@@ -42,6 +42,7 @@ vector<u8> sprite2(8, 0);
 GLubyte bits[BUFF_SIZE];
 GLubyte bits_color_tmp[PIXEL_SIZE * 3];
 GLubyte bits_color[PIXEL_SIZE * 3];
+GLubyte bits_color_resize[PIXEL_SIZE * 3 * 4];
 
 int main(){
     int result=0;
@@ -212,6 +213,46 @@ int main(){
         }
     }
 
+    int line_cnt = 0;
+    for(int i=0; i<(PIXEL_COLUMN_SIZE * 2); i++) {
+        for(int j=0; j<(PIXEL_LINE_SIZE * COLOR_SIZE * 2) ; j++) {
+            if((i%2)==1) {
+                //if(bits_color_resize[(i-1)*PIXEL_LINE_SIZE*3*2+j]!=0) {
+                //    cout << "bits_color_resize: " << hex << +bits_color_resize[(i-1)*PIXEL_LINE_SIZE*3*2+j] << endl;
+                //}
+                bits_color_resize[i*PIXEL_LINE_SIZE*3*2+j] = bits_color_resize[(i-1)*PIXEL_LINE_SIZE*3*2+j];
+            }
+            else {
+                for(int k=0; k<6; k++) {
+                    //if(bits_color[line_cnt]) cout << "bits_color: " << hex << +bits_color[line_cnt] << endl; 
+                    if(k<3) {
+                        bits_color_resize[i*PIXEL_LINE_SIZE*3*2+j++] = bits_color[line_cnt++];
+                        //if(bits_color_resize[j-1]!=0) cout << "bits_color_resize: " << hex << +bits_color_resize[j-1] << endl;
+                    }
+                    else {
+                        if(k==3) {
+                            line_cnt = line_cnt - 3;
+                        }
+                        bits_color_resize[i*PIXEL_LINE_SIZE*3*2+j] = bits_color[line_cnt++];
+                        if(k!=5) {
+                            j++;
+                        }
+                    }
+                }
+            }
+        }
+        cout << "line" << dec << i << ":" << line_cnt << endl;
+    }
+
+    cout << "line_cnt: " << dec << line_cnt << endl;
+    for(int i=0; i<256 * 240 * 3 * 4; i++){
+		cnt = cnt + 1;
+		cout << setfill('0') << right << setw(2) << hex << +bits_color_resize[i] << " ";
+		if((cnt > 14) && ((cnt % 256 * 3 * 2) == 0)) cout << endl;
+        else if((cnt > 0) && ((cnt % 3) == 0)) cout << ", ";
+        else cout << " ";
+	}
+
 
 	cout << index << endl;
     // GLFWの初期化(GLFW)
@@ -226,8 +267,8 @@ int main(){
     atexit(glfwTerminate);
 
     //ウィンドウの作成（GLFW）
-    GLFWwindow * const window(glfwCreateWindow(/* int width = */PIXEL_LINE_SIZE, 
-                                               /* int height =  */PIXEL_COLUMN_SIZE, 
+    GLFWwindow * const window(glfwCreateWindow(/* int width = */PIXEL_LINE_SIZE * 2, 
+                                               /* int height =  */PIXEL_COLUMN_SIZE * 2, 
                                                /* const char * title =   */"Hello!", 
                                                /* GLFWmonitor * monitor =  */NULL, 
                                                /* GLFWwindow * share =  */NULL));
@@ -255,7 +296,7 @@ int main(){
 	
         // 描画処理
 		glRasterPos2i(-1, -1);
-		glDrawPixels(PIXEL_LINE_SIZE, PIXEL_COLUMN_SIZE, GL_RGB, GL_UNSIGNED_BYTE, bits_color);
+		glDrawPixels(PIXEL_LINE_SIZE*2, PIXEL_COLUMN_SIZE*2, GL_RGB, GL_UNSIGNED_BYTE, bits_color_resize);
         
 		// カラーバッファ入れ替え <= ダブルバッファリング（GLFW）
         glfwSwapBuffers(window);
