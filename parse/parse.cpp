@@ -10,18 +10,13 @@
 #include <iomanip>
 #include <vector>
 
-/* using namespace std;
-typedef unsigned char u8; */
 
-/* int cnt, prom_size, crom_size;
-char outfile[] = "sample2.nes";
-vector<u8> pROM;
-vector<u8> cROM;
-vector<u8> cpu_mem(0xffff, 0); */
-
-int myparse(int& cnt, int& prom_size, int& crom_size, char outfile[], vector<u8>& pROM, vector<u8>& cROM, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
+int myparse(char outfile[], vector<u8>& cpu_mem, vector<u8>& ppu_mem){
 	u8 d;//文字列でないデータ（double型である理由はよくわからん）→  結局charにした
 	//u8 v = 0;
+	int cnt=0, prom_size=0, crom_size=0;
+	vector<u8> pROM;
+	vector<u8> cROM;
 	ifstream fin(outfile, ios::in | ios::binary);
 		//ファイルを開く
 		//ios::は読み込み専用を示す

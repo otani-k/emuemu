@@ -9,43 +9,83 @@
 using namespace std;
 
 //オペコード一覧（記法：命令_アドレッシングモード）
+#define BRK_impl  0x00
+#define ORA_Xind  0x01
+#define ORA_zpg   0x05
+#define ASL_zpg   0x06
+#define PHP_impl  0x08
+#define ORA_imm   0x09
+#define ORA_abs   0x0D
+#define ASL_abs   0x0E
+
+#define BPL_rel   0x10
+#define ORA_indY  0x11
+#define ORA_zpgX  0x15
+#define ASL_zpgX  0x16
+#define CLC_impl  0x18
+#define ORA_absY  0x19
+#define ORA_absX  0x1D
+#define ASL_absX  0x1E
+
+#define JSR_abs   0x20
+#define AND_Xind  0x21
+#define BIT_zpg   0x24
+#define AND_zpg   0x25
+#define ROL_zpg   0x26
+#define PLP_impl  0x28
+#define AND_imm   0x29
+#define POL_A     0x2A
+#define BIT_abs   0x2C
+#define AND_abs   0x2D
+#define ROL_abs   0x2E
+// ここまで
+
+#define BMI_rel   0x30
+#define AND_indY  0x31
+#define AND_zpgX  0x35
+#define ROL_zpgX  0x36
+
+
+#define JMP_abs   0x4C
+
+#define JMP_ind   0x6C
+
 #define SEI_impl  0x78
 
-#define LDX_imm   0xA2
-#define LDX_zpg   0xA6
-#define LDX_abs   0xAE
 
+#define STA_Xind  0x81
+#define STA_zpg   0x85
+#define DEY_impl  0x88
+#define STA_abs   0x8D
+
+#define STA_indY  0x91
+#define STA_zpgX  0x95
+#define STA_absY  0x99
+#define TXS_impl  0x9A
+#define STA_absX  0x9D
 #define TXS_impl  0x9A
 
+#define LDY_imm   0xA0
 #define LDA_Xind  0xA1
+#define LDX_imm   0xA2
+#define LDY_zpg   0xA4
 #define LDA_zpg   0xA5
+#define LDX_zpg   0xA6
 #define LDA_imm   0xA9
+#define LDY_absX  0xAC
 #define LDA_abs   0xAD
+#define LDX_abs   0xAE
+
 #define LDA_indY  0xB1
 #define LDA_zpgX  0xB5
 #define LDA_absY  0xB9
 #define LDA_absX  0xBD
 
-#define STA_Xind  0x81
-#define STA_zpg   0x85
-#define STA_abs   0x8D
-#define STA_indY  0x91
-#define STA_zpgX  0x95
-#define STA_absY  0x99
-#define STA_absX  0x9D
-
-#define LDY_imm   0xA0
-#define LDY_zpg   0xA4
-#define LDY_absX  0xAC
+#define BNE_rel   0xD0
 
 #define INX_impl  0xE8
 
-#define DEY_impl  0x88
 
-#define BNE_rel   0xD0
-
-#define JMP_abs   0x4C
-#define JMP_ind   0x6C
 
 
 typedef unsigned char u8;
@@ -105,24 +145,24 @@ typedef unsigned short int u16;
 	};
 
 	//各命令のクロックサイクル数
-//	vector<char> cycles = {
-//	        /*0x00*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
-//          /*0x10*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 6, 7,
-//          /*0x20*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
-//          /*0x30*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 6, 7,
-//          /*0x40*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
-//          /*0x50*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 6, 7,
-//          /*0x60*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
-//          /*0x70*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 6, 7,
-//          /*0x80*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-//          /*0x90*/ 2, 6, 2, 6, 4, 4, 4, 4, 2, 4, 2, 5, 5, 4, 5, 5,
-//          /*0xA0*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-//          /*0xB0*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
-//          /*0xC0*/ 2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-//          /*0xD0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-//          /*0xE0*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-//          /*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-//	};
+	vector<char> cycles = {
+		/*0x00*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
+        /*0x10*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 6, 7,
+        /*0x20*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
+        /*0x30*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 6, 7,
+		/*0x40*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
+		/*0x50*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 6, 7,
+		/*0x60*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
+		/*0x70*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 6, 7,
+		/*0x80*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+		/*0x90*/ 2, 6, 2, 6, 4, 4, 4, 4, 2, 4, 2, 5, 5, 4, 5, 5,
+		/*0xA0*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+		/*0xB0*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
+		/*0xC0*/ 2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+		/*0xD0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+		/*0xE0*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+		/*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+	};
 
 	struct cpu {
 
@@ -404,7 +444,7 @@ typedef unsigned short int u16;
 			reg.PC = addr;
 		}
 
-		void exec(struct Register& reg, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
+		char exec(struct Register& reg, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
 			u8 operand;
 			
 			operand = fetch(reg, cpu_mem);
@@ -630,6 +670,7 @@ typedef unsigned short int u16;
 				//
 				//	cout << setfill('0') << right << setw(2) << hex << +operand << endl;
 			}
+			return cycles[operand];
 		}
 
 		void reset(struct Register& reg, vector<u8>& cpu_mem) {
@@ -647,19 +688,20 @@ typedef unsigned short int u16;
 		}
 
 		void run(struct Register& reg, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
-			int cnt=0;
+			int cnt=0, cycle=0;
 			while(1){
 				//cout << hex << +reg.PC << endl;
 				if(reg.PC == 0xffff){
-					exec(reg, cpu_mem, ppu_mem);
+					cycle += exec(reg, cpu_mem, ppu_mem);
 					return;
 				}
-			if(cnt == 200) return;
+				if(cnt == 200) return;
 
 				cout << hex << reg.PC << endl;
-				exec(reg, cpu_mem, ppu_mem);
+				cycle += exec(reg, cpu_mem, ppu_mem);
+				cout << dec << +cycle << endl;
 				cnt++;
-		}
+			}	
 		}
 	};
 
