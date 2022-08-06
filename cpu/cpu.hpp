@@ -44,26 +44,72 @@ using namespace std;
 #define AND_indY  0x31
 #define AND_zpgX  0x35
 #define ROL_zpgX  0x36
+#define SEC_impl  0x38
+#define AND_abs_Y 0x39
+#define AND_abs   0x3D
+#define ROL_absX  0x3E
 
-
+#define RTI_impl  0x40
+#define EOR_Xind  0x41
+#define EOR_zpg   0x45
+#define LSR_zpg   0x46
+#define PHA_impl  0x48
+#define EOR_imm   0x49
+#define LSA_A     0x4A
 #define JMP_abs   0x4C
+#define EOR_abs   0x4D
+#define LSR_abs   0x4E
 
+#define BVC_rel   0x50
+#define EOR_indY  0x51
+#define EOR_zpgX  0x55
+#define LSR_zpgX  0x56
+#define PHA_impl  0x58
+#define EOR_imm   0x59
+#define LSR_A     0x5A
+#define JMP_abs   0x5C
+#define EOR_abs   0x5D
+#define LSR_abs   0x5E
+
+#define RTS_impl  0x60
+#define ADC_Xind  0x61
+#define ADC_zpg   0x65
+#define ROR_zpg   0x66
+#define PLA_impl  0x68
+#define ADC_imm   0x69
+#define ROR_A     0x6A
 #define JMP_ind   0x6C
+#define ADC_abs   0x6D
+#define ROR_abs   0x6E
 
+#define BVS_rel   0x70
+#define ADC_indY  0x71
+#define ADC_zpgX  0x75
+#define ROR_zpgX  0x76
 #define SEI_impl  0x78
-
+#define ADC_absY  0x79
+#define ADC_absX  0x7D
+#define ROR_absX  0x7E
 
 #define STA_Xind  0x81
+#define STY_zpg   0x84
 #define STA_zpg   0x85
+#define STX_zpg   0x86
 #define DEY_impl  0x88
+#define TXA_impl  0x8A
+#define STY_abs   0x8C
 #define STA_abs   0x8D
+#define STX_abs   0x8E
 
+#define BCC_rel   0x90
 #define STA_indY  0x91
+#define STY_zpgX  0x94
 #define STA_zpgX  0x95
+#define STX_zpgY  0x96
+#define TYA_impl  0x98
 #define STA_absY  0x99
 #define TXS_impl  0x9A
 #define STA_absX  0x9D
-#define TXS_impl  0x9A
 
 #define LDY_imm   0xA0
 #define LDA_Xind  0xA1
@@ -71,22 +117,66 @@ using namespace std;
 #define LDY_zpg   0xA4
 #define LDA_zpg   0xA5
 #define LDX_zpg   0xA6
+#define TAY_impl  0xA8
 #define LDA_imm   0xA9
-#define LDY_absX  0xAC
+#define TAX_impl  0xAA
+#define LDY_abs   0xAC
 #define LDA_abs   0xAD
 #define LDX_abs   0xAE
 
+#define BCS_rel   0xB0
 #define LDA_indY  0xB1
+#define LDY_zpgX  0xB4
 #define LDA_zpgX  0xB5
+#define LDX_zpgY  0xB6
+#define CLV_impl  0xB8
 #define LDA_absY  0xB9
+#define TSX_impl  0xBA
+#define LDY_absX  0xBC
 #define LDA_absX  0xBD
+#define LDX_absY  0xBE
+
+#define CPY_imm   0xC0
+#define CMP_Xind  0xC1
+#define CPY_zpg   0xC4
+#define CMP_zpg   0xC5
+#define DEC_zpg   0xC6
+#define INY_impl  0xC8
+#define CMP_imm   0xC9
+#define DEX_impl  0xCA
+#define CPY_abs   0xCC
+#define CMP_abs   0xCD
+#define DEC_abs   0xCE
 
 #define BNE_rel   0xD0
+#define CMP_indY  0xD1
+#define CMP_zpgX  0xD5
+#define DEC_zpgX  0xD6
+#define CLD_impl  0xD8
+#define CMP_absY  0xD9
+#define CMP_absX  0xDD
+#define DEC_absX  0xDE
 
+#define CPX_imm   0xE0
+#define SBC_Xind  0xE1
+#define CPX_zpg   0xE4
+#define SBC_zpg   0xE5
+#define INC_zpg   0xE6
 #define INX_impl  0xE8
+#define SBC_imm   0xE9
+#define NOP_impl  0xEA
+#define CPX_abs   0xEC
+#define SBC_abs   0xED
+#define INC_abs   0xEE
 
-
-
+#define BEQ_rel   0xF0
+#define SBC_indY  0xF1
+#define SBC_zpgX  0xF5
+#define INC_zpgX  0xF6
+#define SED_impl  0xF8
+#define SBC_absY  0xF9
+#define SBC_absX  0xFD
+#define INC_absX  0xFE
 
 typedef unsigned char u8;
 //typedef signed char s8;
@@ -631,7 +721,7 @@ typedef unsigned short int u16;
 				ldy(reg, u16_a, cpu_mem, ppu_mem);
 				break;
 
-				case LDY_absX:
+				case LDY_abs:
 
 				u16_a = absX(reg, cpu_mem);
 				ldy(reg, u16_a, cpu_mem, ppu_mem);
