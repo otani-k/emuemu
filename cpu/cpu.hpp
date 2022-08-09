@@ -38,7 +38,6 @@ using namespace std;
 #define BIT_abs   0x2C
 #define AND_abs   0x2D
 #define ROL_abs   0x2E
-// ここまで
 
 #define BMI_rel   0x30
 #define AND_indY  0x31
@@ -178,6 +177,19 @@ using namespace std;
 #define SBC_absX  0xFD
 #define INC_absX  0xFE
 
+// ステータスレジスタの各フラグ
+#define NEGATIVE_FLAG  0b10000000
+#define OVERFLAW_FLAG  0b01000000
+#define BREAK_FLAG     0b00010000
+#define DECIMAL_FLAG   0b00001000
+#define INTERRUPT_FLAG 0b00000100
+#define ZERO_FLAG      0b00000010
+#define CARRY_FLAG     0b00000001
+
+// ADC命令かSBC命令かのフラグ
+#define ADC_FLAG 0
+#define SBC_FLAG 1
+
 typedef unsigned char u8;
 //typedef signed char s8;
 //typedef signed short int s16;
@@ -216,13 +228,6 @@ typedef unsigned short int u16;
 //			cpu_mem = w | cpu_mem.at(addr+1);
 //		      return w;	
 //		}
-
-        void flag_z(u8& ans){
-			if(ans == 0) P = P | 0b00000010;
-			else P = P & 0b11111101;
-
-			cout << "P flag: " << bitset<8>(P) << endl;
-		}
 
 		void regreset() {
 			A = 0x00;
@@ -279,6 +284,51 @@ typedef unsigned short int u16;
 			if(reg.PC != 0xffff) reg.PC++;
 			return w;
 		}
+
+		// ステータスレジスタの各フラグのチェック
+		void check_zero_flag_u8(u8& ans, struct Register& reg){
+			if(ans == 0) reg.P = reg.P | 0b00000010;
+			else reg.P = reg.P & ~ZERO_FLAG;
+			cout << "P flag: " << bitset<8>(P) << endl;
+		}
+
+		void check_zero_flag_u16(u16& ans, struct Register& reg){
+			if(ans == 0) reg.P = reg.P | 0b00000010;
+			else reg.P = reg.P & ~ZERO_FLAG;
+			cout << "P flag: " << bitset<8>(P) << endl;
+		}
+
+		void check_carry_flag(u16& ans, struct Register& reg){
+			if((ans << 8) & 1){
+				reg.P = reg.P | CARRY_FLAG;
+				u16_1 &= ~(1 << 8);
+			}else{
+				reg.P = reg.P & ~CARRY_FLAG;
+			}
+		}
+
+		void check_negative_flag(u16& ans, struct Register& reg){
+			if((ans << 7) & 1) reg.P |= NEGATIVE_FLAG;
+			else reg.P &= ~NEGATIVE_FLAG;
+		}
+
+		void check_overflaw_flag(int operand, u16& ans, struct Register& reg){
+			if(operand == ADC_FLAG){
+				if((u8_1 << 7) & 1 == (reg.A << 7) & 1){  
+					if((u8_1 << 7) & 1 == 1){
+						if((u16_1 << 7) & 1 == 0) reg.S = reg.S | OVERFLAW_FLAG;
+						else reg.S &= ~OVERFLAW_FLAG;
+					} else {
+					if((u16_1 << 7) & 1 == 1) reg.S = reg.S | OVERFLAW_FLAG;
+					else reg.S &= ~OVERFLAW_FLAG;
+					}
+				} else {
+					reg.S &= ~OVERFLAW_FLAG;
+				}
+			}
+		}
+
+
 
 		//アドレッシングモードに対応した処理
 		// sharp: オペコードの次の番地に格納されている値を演算対象とする．
@@ -460,10 +510,36 @@ typedef unsigned short int u16;
 			return u16_2;
 		}
 
-		//命令に対応した処理
+		// 命令に対応した処理
+		// 演算命令
+		// adc: 指定したアドレスの値とAレジスタの値を足した結果をAレジスタに格納
+		void adc(struct Register& reg, u16& addr){
+			u8 u8_1; 
+			u16 u16_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u16_1 = static_cast<u16>(u8_1);
+			if((reg.P | CARRY_FLAG)==1) u16_1 |= (1 << 8);
+			check_carry_flag(u16_1, reg);
+			check_overflaw_flag(ADC_FLAG, u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			check_negative_flag(u16_1, reg);
+			reg.A = static_cast<u8>(u16_1);
+		}
+
+		// sbc: 指定したアドレスの値からAレジスタの値を引いた結果をAレジスタに格納
+		void sbc(struct Register& reg, u16& addr){
+			u8 u8_1, u8_2;
+			u16 u16_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u8_2 = ~reg.A;
+			u16_1 = static_cast<u16_1>(u8_1) + static_cast<u16_1>(reg.A) + 1;
+		}
+
 		//sei: ステータスレジスタのビット2 (I) に1をセット
 		void sei(struct Register& reg){
-			reg.P = reg.P | 0b00000100;
+			reg.P = reg.P | INTERRUPT_FLAG;
 		}
 
 		//ldx: 指定したアドレスに格納されている値をXレジスタにロード
@@ -503,7 +579,7 @@ typedef unsigned short int u16;
 		void inx(struct Register& reg){
 			reg.X = reg.X + 1;
 			cout << "reg.X: " << hex << +reg.X << endl;
-			reg.flag_z(reg.X);
+			check_zero_flag(reg.X);
 		}
 
 		// dey: Yレジスタを1減算
@@ -514,7 +590,7 @@ typedef unsigned short int u16;
 			u16_1 = static_cast<u16>(reg.Y) + static_cast<u16>(0b11111111);
 			reg.Y  = static_cast<u8>(u16_1);
 			//if(reg.Y == 0) reg.P = reg.P | 0b00000010;
-			reg.flag_z(reg.Y);
+			check_zero_flag(reg.Y, reg);
 			cout << "after reg.Y: " << hex << +reg.Y << endl;
 		}
 
@@ -684,7 +760,6 @@ typedef unsigned short int u16;
 				// Store A to M A -> M
 				// アドレッシングモード（indY）: 0x00を上位アドレス，オペコードの次の番地に格納された値を下位アドレスとした番地の値を下位アドレス，
 				// その次の番地の値を上位アドレスとした番地にYレジスタの値を加算した番地にAレジスタの値を格納
-
 
 				u16_a = IndY(reg, cpu_mem);
 				sta(reg, u16_a, cpu_mem, ppu_mem);
