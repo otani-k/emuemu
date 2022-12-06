@@ -29,6 +29,7 @@ int myparse(char outfile[], vector<u8>& cpu_mem, vector<u8>& ppu_mem){
 
 	//cout << "00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F" << endl;
 	//cout << "-------------------------------------------------"  << endl;
+	//cout << "prom; " << endl;
 	//cout << setfill('0') << right << setw(8) << hex << cnt << ": ";	
 	while(!fin.eof()){ //ファイルの最後まで続ける
 		fin.read((char*)&d, sizeof(char));
@@ -51,7 +52,7 @@ int myparse(char outfile[], vector<u8>& cpu_mem, vector<u8>& ppu_mem){
 		cnt++;
 		//if(cnt % 16 == 0) {
 		//	cout << endl;
-	//		cout << setfill('0') << right <<setw(8) << hex << cnt + 1;
+		//	cout << setfill('0') << right <<setw(8) << hex << cnt + 1 << ": ";
 		//}	
 	}
 	fin.close(); //ファイルを閉じる
@@ -62,16 +63,16 @@ int myparse(char outfile[], vector<u8>& cpu_mem, vector<u8>& ppu_mem){
 	for(int i=0; i<static_cast<int>(pROM.size()); i++){
 		//cout << i << endl;
 		//cnt = cnt + 1;
-		cpu_mem.at(0x8000 + i) = pROM.at(i);
+		cpu_mem.at(0xC000 + i) = pROM.at(i);
 		//v = pROM.at(i);
 		//cpu_mem.at(0x8000 + i) = v;
 		//cout << setfill('0') << right << setw(2) << hex << +cpu_mem.at(0x8000 + i) << " ";
 		//if((cnt > 14) && (cnt % 16) == 0) cout << endl;
 	}
-	cout << "AAA" << endl;
-	cout << (0x3fff + 1) - 0x3f00 << endl;
-	cout << 0x3fff + 1  - 0x2000<< endl;
-	cout << cROM.size() << endl;
+	//cout << "AAA" << endl;
+	//cout << (0x3fff + 1) - 0x3f00 << endl;
+	//cout << 0x3fff + 1  - 0x2000<< endl;
+	//cout << cROM.size() << endl;
 	for(int j=0; j<static_cast<int>(cROM.size()); j++){
 		//cnt = cnt + 1;
 		//cout << j << endl;

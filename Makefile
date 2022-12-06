@@ -1,4 +1,4 @@
-FILES := parse/parse.cpp ppu/ppu.cpp window/window.cpp main.cpp
+FILES := parse/parse.cpp ppu/ppu.cpp window/window.cpp debug/memdump.cpp main.cpp
 CXXFLAGS = -Wall -std=c++11 
 LDLIBS = -lGL -lglfw
 OBJECTS = $(patsubst %.cpp,%.o,$(FILES))

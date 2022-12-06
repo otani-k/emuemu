@@ -30,6 +30,7 @@ typedef unsigned char u8;
 typedef unsigned short int u16;
 
 void buff_create(vector<u8>& ppu_mem, GLubyte* bits_color_tmp);
+void buff_create_line(int& line_cnt, vector<u8>& ppu_mem, GLubyte* bits_color_tmp);
 void buff_reverse(GLubyte* bits_color_tmp, GLubyte* bits_color);
 void buff_resize(GLubyte* bits_color, GLubyte* bits_color_resize);
-int disp(vector<u8>& ppu_mem);
+int disp(struct Register& reg, struct cpu& cpu, vector<u8>& cpu_mem, vector<u8>& ppu_mem);

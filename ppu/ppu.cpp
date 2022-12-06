@@ -13,13 +13,12 @@ void ppu_addr(vector<u8>& cpu_mem, struct Register& reg, u8& num){
     if(ppu_addr_count == 0){
         cpu_mem.at(0x2005) = num;
         ppu_addr_count++;
-        cout << "0x2005 & 0x2006:  " << setfill('0') << right << setw(2) << hex << +cpu_mem.at(0x2005) << " " << +cpu_mem.at(0x2006) << endl;
-        
+        //cout << "0x2005 & 0x2006:  " << setfill('0') << right << setw(2) << hex << +cpu_mem.at(0x2005) << " " << +cpu_mem.at(0x2006) << endl;
     }
     else if(ppu_addr_count == 1){
         cpu_mem.at(0x2006) = num;
         ppu_addr_count = 0;
-        cout << "0x2005 & 0x2006:  " << setfill('0') << right << setw(2) << hex << +cpu_mem.at(0x2005) << " " << +cpu_mem.at(0x2006) << endl;
+        //cout << "0x2005 & 0x2006:  " << setfill('0') << right << setw(2) << hex << +cpu_mem.at(0x2005) << " " << +cpu_mem.at(0x2006) << endl;
     }
 }
 

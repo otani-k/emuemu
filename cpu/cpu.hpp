@@ -34,7 +34,7 @@ using namespace std;
 #define ROL_zpg   0x26
 #define PLP_impl  0x28
 #define AND_imm   0x29
-#define POL_A     0x2A
+#define ROL_A     0x2A
 #define BIT_abs   0x2C
 #define AND_abs   0x2D
 #define ROL_abs   0x2E
@@ -44,8 +44,8 @@ using namespace std;
 #define AND_zpgX  0x35
 #define ROL_zpgX  0x36
 #define SEC_impl  0x38
-#define AND_abs_Y 0x39
-#define AND_abs   0x3D
+#define AND_absY  0x39
+#define AND_absX  0x3D
 #define ROL_absX  0x3E
 
 #define RTI_impl  0x40
@@ -54,7 +54,7 @@ using namespace std;
 #define LSR_zpg   0x46
 #define PHA_impl  0x48
 #define EOR_imm   0x49
-#define LSA_A     0x4A
+#define LSR_A     0x4A
 #define JMP_abs   0x4C
 #define EOR_abs   0x4D
 #define LSR_abs   0x4E
@@ -63,12 +63,10 @@ using namespace std;
 #define EOR_indY  0x51
 #define EOR_zpgX  0x55
 #define LSR_zpgX  0x56
-#define PHA_impl  0x58
-#define EOR_imm   0x59
-#define LSR_A     0x5A
-#define JMP_abs   0x5C
-#define EOR_abs   0x5D
-#define LSR_abs   0x5E
+#define CLI_impl  0x58
+#define EOR_absY  0x59
+#define EOR_absX  0x5D
+#define LSR_absX  0x5E
 
 #define RTS_impl  0x60
 #define ADC_Xind  0x61
@@ -200,7 +198,7 @@ typedef unsigned short int u16;
 		u8 A;// アキュムレータ（演算を行うとき使う？）
 		u8 X;// インデックスレジスタ
 		u8 Y;// インデックスレジスタ
-		u8 S;// スタックポインタ
+		u8 SP;// スタックポインタ
 		u8 P;// ステータスレジスタ
 		
 		// ステータスレジスタの各フラグ
@@ -216,7 +214,7 @@ typedef unsigned short int u16;
 		// Z (Zero flag): 演算結果が0の場合セット，それ以外の場合クリア
 		// C (Carry flag): ADC命令によってビット7からの桁上げが発生した場合セット
 		//                 SBC，CMP，CPX命令によってビット7からの桁上げが発生しなかった場合セット
-	    //                 ASL，POL命令では，Aのビット7をストア
+	    //                 ASL，ROL命令では，Aのビット7をストア
 		//                 LSR，ROR命令ではAのビット0をストア
 		//                 CLC命令でクリア，SEC命令でセット
 		u16 PC;//プログラムカウンタ
@@ -233,14 +231,15 @@ typedef unsigned short int u16;
 			A = 0x00;
 			X = 0x00;
 			Y = 0x00;
-			P = 0b00110100;
-			S = 0xFD;
+			P = 0b00100100;
+			SP = 0xFD;
 			PC = 0x8000;
 		}
 	};
 
-	//各命令のクロックサイクル数
-	vector<char> cycles = {
+	struct cpu {
+		//各命令のクロックサイクル数
+		vector<char> cycles = {
 		/*0x00*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
         /*0x10*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 6, 7,
         /*0x20*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
@@ -258,77 +257,117 @@ typedef unsigned short int u16;
 		/*0xE0*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
 		/*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
 	};
-
-	struct cpu {
-
-		u16 u16_a;// 適当な変数
-
 		// read:メモリから値を読み込み
 		// 引数：読み込みたいアドレス
 		// 返り値：読み込んだ値
-		u8 read(u16 addr, vector<u8>& cpu_mem) { 
+		u8 read(u16 addr, vector<u8>& cpu_mem){ 
 			return cpu_mem.at(addr);
 		}
 		// write:メモリに値を書き込み
 		// 引数：書き込むアドレス，書き込む値
-		void write(u16& addr, u8& data, vector<u8>& cpu_mem) {
+		void write(u16& addr, u8& data, vector<u8>& cpu_mem){
 			cpu_mem.at(addr) = data;			
 		}
 		
 		// fetch:メモリから命令を読み込み
 		// 
-		u8 fetch(struct Register& reg, vector<u8>& cpu_mem) {
+		u8 fetch(struct Register& reg, vector<u8>& cpu_mem){
 			u8 w;
-
+			cout <<  hex << uppercase << setw(4) << setfill('0') << +reg.PC;
+			cout << " A:" << hex << uppercase << setw(2) << setfill('0') << +reg.A;
+			cout << " X:" << hex << uppercase << setw(2) << setfill('0') << +reg.X;
+			cout << " Y:" << hex << uppercase << setw(2) << setfill('0') << +reg.Y;
+			cout << " P:" << hex << uppercase << setw(2) << setfill('0') << +reg.P;
+			cout << " SP:" << hex << uppercase << setw(2) << setfill('0') << +reg.SP << endl;			
 			w = read(reg.PC, cpu_mem);
 			if(reg.PC != 0xffff) reg.PC++;
 			return w;
 		}
 
-		// ステータスレジスタの各フラグのチェック
+		// ステータスレジスタの各フラグのチェックと値の変更
 		void check_zero_flag_u8(u8& ans, struct Register& reg){
 			if(ans == 0) reg.P = reg.P | 0b00000010;
 			else reg.P = reg.P & ~ZERO_FLAG;
-			cout << "P flag: " << bitset<8>(P) << endl;
 		}
 
 		void check_zero_flag_u16(u16& ans, struct Register& reg){
 			if(ans == 0) reg.P = reg.P | 0b00000010;
 			else reg.P = reg.P & ~ZERO_FLAG;
-			cout << "P flag: " << bitset<8>(P) << endl;
 		}
 
 		void check_carry_flag(u16& ans, struct Register& reg){
-			if((ans << 8) & 1){
+			if((ans >> 8) & 1){
 				reg.P = reg.P | CARRY_FLAG;
-				u16_1 &= ~(1 << 8);
+				ans &= ~(1 << 8);
 			}else{
 				reg.P = reg.P & ~CARRY_FLAG;
 			}
 		}
 
-		void check_negative_flag(u16& ans, struct Register& reg){
-			if((ans << 7) & 1) reg.P |= NEGATIVE_FLAG;
+		void check_negative_flag_u8(u8& ans, struct Register& reg){
+			if((ans >> 7) & 1) reg.P |= NEGATIVE_FLAG;
 			else reg.P &= ~NEGATIVE_FLAG;
 		}
 
-		void check_overflaw_flag(int operand, u16& ans, struct Register& reg){
-			if(operand == ADC_FLAG){
-				if((u8_1 << 7) & 1 == (reg.A << 7) & 1){  
-					if((u8_1 << 7) & 1 == 1){
-						if((u16_1 << 7) & 1 == 0) reg.S = reg.S | OVERFLAW_FLAG;
-						else reg.S &= ~OVERFLAW_FLAG;
-					} else {
-					if((u16_1 << 7) & 1 == 1) reg.S = reg.S | OVERFLAW_FLAG;
-					else reg.S &= ~OVERFLAW_FLAG;
-					}
-				} else {
-					reg.S &= ~OVERFLAW_FLAG;
-				}
-			}
+		void check_negative_flag_u16(u16& ans, struct Register& reg){
+			if((ans >> 7) & 1) reg.P |= NEGATIVE_FLAG;
+			else reg.P &= ~NEGATIVE_FLAG;
 		}
 
+		void check_overflaw_flag(int operand, u8& op1, u16& ans, struct Register& reg){
+			if(operand == ADC_FLAG){
+				if(((op1 >> 7) & 1) == ((reg.A << 7) & 1)){  
+					if(((op1 >> 7) & 1) == 1){
+						if(((ans >> 7) & 1) == 0) reg.P |= OVERFLAW_FLAG;
+						else reg.P &= ~OVERFLAW_FLAG;
+					} else {
+						if(((ans >> 7) & 1) == 1) reg.P |= OVERFLAW_FLAG;
+						else reg.P &= ~OVERFLAW_FLAG;
+					}
+				} else {
+					reg.P &= ~OVERFLAW_FLAG;
+				}
+			} 
+			else if(operand == SBC_FLAG){
+				if(((op1 >> 7) & 1) != ((reg.A >> 7) & 1)){
+					if((((op1 >> 7)) & 1) == 1){
+						if(((ans >> 7) & 1) == 0) reg.P |= OVERFLAW_FLAG;
+						else reg.P &= ~OVERFLAW_FLAG;
+					} else {
+						if(((ans >> 7) & 1) == 1) reg.P |= OVERFLAW_FLAG;
+						else reg.P &= ~OVERFLAW_FLAG;
+					}
+				} else {
+					reg.P &= ~OVERFLAW_FLAG;
+				}
+			} 
+		}
 
+		//スタック操作
+		void stack_push(struct Register& reg, u8 addr, vector<u8>& cpu_mem){
+			u16 u16_1, u16_2;
+
+			u16_1 = 1;
+			u16_1 <<= 8;
+			u16_2 = static_cast<u16>(reg.SP);
+			u16_1 |= u16_2;
+			cpu_mem.at(u16_1) = addr;
+			//cout << "u16_1: " << hex << +cpu_mem.at(u16_1) <<  endl;
+			reg.SP--;
+		}
+
+		void stack_pop(struct Register& reg, u8& addr, vector<u8>& cpu_mem){
+			u16 u16_1, u16_2;
+
+			u16_1 = 1;
+			u16_1 <<= 8;
+			reg.SP++;
+			u16_2 = static_cast<u16>(reg.SP);
+			u16_1 |= u16_2;
+			//cout << "u16_1: " << hex << +u16_1 << endl;
+			addr = cpu_mem.at(u16_1);
+			//cout << "addr: " << hex << +addr << endl;
+		}
 
 		//アドレッシングモードに対応した処理
 		// sharp: オペコードの次の番地に格納されている値を演算対象とする．
@@ -372,7 +411,7 @@ typedef unsigned short int u16;
 			u8_1 = read(reg.PC, cpu_mem);
 			reg.PC++;
 			u8_1 = u8_1 + reg.Y;
-			u16_1 = static_cast<u16>(u16_1);
+			u16_1 = static_cast<u16>(u8_1);
 			return u16_1;
 		}
 
@@ -513,7 +552,7 @@ typedef unsigned short int u16;
 		// 命令に対応した処理
 		// 演算命令
 		// adc: 指定したアドレスの値とAレジスタの値を足した結果をAレジスタに格納
-		void adc(struct Register& reg, u16& addr){
+		void adc(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
 			u8 u8_1; 
 			u16 u16_1;
 
@@ -521,317 +560,1347 @@ typedef unsigned short int u16;
 			u16_1 = static_cast<u16>(u8_1);
 			if((reg.P | CARRY_FLAG)==1) u16_1 |= (1 << 8);
 			check_carry_flag(u16_1, reg);
-			check_overflaw_flag(ADC_FLAG, u16_1, reg);
+			check_overflaw_flag(ADC_FLAG, u8_1, u16_1, reg);
 			check_zero_flag_u16(u16_1, reg);
-			check_negative_flag(u16_1, reg);
+			check_negative_flag_u16(u16_1, reg);
 			reg.A = static_cast<u8>(u16_1);
 		}
 
 		// sbc: 指定したアドレスの値からAレジスタの値を引いた結果をAレジスタに格納
-		void sbc(struct Register& reg, u16& addr){
+		void sbc(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
 			u8 u8_1, u8_2;
 			u16 u16_1;
 
 			u8_1 = read(addr, cpu_mem);
 			u8_2 = ~reg.A;
-			u16_1 = static_cast<u16_1>(u8_1) + static_cast<u16_1>(reg.A) + 1;
+			u16_1 = static_cast<u16>(u8_1) + static_cast<u16>(u8_2) + 1;
+			check_carry_flag(u16_1, reg);
+			check_overflaw_flag(SBC_FLAG, u8_1, u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			check_negative_flag_u16(u16_1, reg);
+			reg.A = static_cast<u8>(u16_1);
 		}
 
-		//sei: ステータスレジスタのビット2 (I) に1をセット
+		// 論理演算
+		// and: 指定したアドレスの値とAレジスタをANDした結果をAレジスタに格納
+		void and_op(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+
+			u8_1 = read(addr, cpu_mem);
+			reg.A &= u8_1;
+			check_zero_flag_u8(reg.A, reg);
+			check_negative_flag_u8(reg.A, reg);
+		}
+
+		// ora: 指定したアドレスの値とAレジスタをORした結果をAレジスタに格納
+		void ora(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+
+			u8_1 = read(addr, cpu_mem);
+			reg.A |= u8_1;
+			check_zero_flag_u8(reg.A, reg);
+			check_negative_flag_u8(reg.A, reg);
+		}
+
+		// eor: 指定したアドレスの値とAレジスタをXORした結果をAレジスタに格納
+		void eor(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+
+			u8_1 = read(addr, cpu_mem);
+			reg.A ^= u8_1;
+			check_zero_flag_u8(reg.A, reg);
+			check_negative_flag_u8(reg.A, reg);
+		}
+
+		// シフト，ローテーション
+		// asl: Carry flagにAレジスタのビット7を格納
+		//      Aレジスタを左に1シフト，ビット0は0
+		void asl_a(struct Register& reg){
+			u16 u16_1;
+
+			u16_1 = static_cast<u16>(reg.A);
+			u16_1 <<= 1;
+			check_carry_flag(u16_1, reg);
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			reg.A = static_cast<u8>(u16_1);
+		}
+
+		// シフト，ローテーション
+		// asl: Carry flagにAレジスタのビット7を格納
+		//      指定したアドレスの値を左に1シフト，ビット0は0
+		void asl(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+			u16 u16_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u16_1 = static_cast<u16>(u8_1);
+			u16_1 <<= 1;
+			check_carry_flag(u16_1, reg);
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			u8_1 = static_cast<u8>(u16_1);
+			write(addr, u8_1, cpu_mem);
+		}
+
+		// lsr: Carry flagにAレジスタのビット0を格納
+		//      Aレジスタを右に1シフト，ビット7には0
+
+		void lsr_a(struct Register& reg){
+			u16 u16_1;
+
+			u16_1 = static_cast<u16>(reg.A);
+			u16_1 <<= 8;
+			check_carry_flag(u16_1, reg);
+			u16_1 >>= 9;
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			reg.A = static_cast<u8>(u16_1);
+		}
+
+		void lsr(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+			u16 u16_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u16_1 = static_cast<u16>(u8_1);
+			u16_1 <<= 8;
+			check_carry_flag(u16_1, reg);
+			u16_1 >>= 9;
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			write(addr, u8_1, cpu_mem);
+		}
+		
+		// rol: Carry flagにAレジスタのビット7を格納
+		//      Aレジスタを左に1シフト，その後Aレジスタのビット0にCarry flagの値を格納
+		void rol_a(struct Register& reg){
+			u16 u16_1;
+
+			u16_1 = static_cast<u16>(reg.A);
+			u16_1 <<= 1;
+			if(reg.P & CARRY_FLAG) u16_1 |= (1 << 0);
+			check_carry_flag(u16_1, reg);
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			reg.A = static_cast<u8>(u16_1);
+		}
+
+		void rol(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+			u16 u16_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u16_1 = static_cast<u16>(u8_1);
+			u16_1 <<= 1;
+			if(reg.P & CARRY_FLAG) u16_1 |= (1 << 0);
+			check_carry_flag(u16_1, reg);
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			u8_1 = static_cast<u8>(u16_1);
+			write(addr, u8_1, cpu_mem);
+		}
+
+		// ror: Carry flagにAレジスタのビット0
+		//      Aレジスタを右に1シフト，その後Aレジスタのビット7にCarry flagの値を格納
+		void ror_a(struct Register& reg){
+			u8 u8_1;
+			u16 u16_1;
+
+
+			u16_1 = static_cast<u16>(reg.A);
+			u8_1 = reg.P & CARRY_FLAG;
+			u16_1 <<= 8;
+			check_carry_flag(u16_1, reg);
+			u16_1 >>= 9;
+			if(u8_1) u16_1 |= (1 << 7);
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			reg.A = static_cast<u8>(u16_1);
+		}
+
+		void ror(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+			u16 u16_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u16_1 = static_cast<u16>(u8_1);
+			u8_1 = reg.P & CARRY_FLAG;
+			u16_1 <<= 8;
+			check_carry_flag(u16_1, reg);
+			u16_1 >>= 9;
+			if(u8_1) u16_1 |= (1 << 7);
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			write(addr, u8_1, cpu_mem);
+		}
+
+		// 条件分岐: 条件が成立した場合，リラティブ・アドレス指定により，分岐先のアドレスをPCへストア
+		//          成立しなかった場合，分岐命令の先頭アドレス+2をPCへストア（次の命令のアドレス）
+		
+		// bcc: Cフラグがクリアされていれば分岐
+		void bcc(struct Register& reg, vector<u8>& cpu_mem){
+			if(reg.P & CARRY_FLAG) reg.PC++;
+			else reg.PC = rel(reg, cpu_mem);
+		}
+
+		// bcs: Cフラグがセットされていれば分岐
+		void bcs(struct Register& reg, vector<u8>& cpu_mem){
+			if(reg.P & CARRY_FLAG) reg.PC = rel(reg, cpu_mem);
+			else reg.PC++;
+		}
+
+		// beq: Zフラグがセットされていれば分岐
+		void beq(struct Register& reg, vector<u8>& cpu_mem){
+			if(reg.P & ZERO_FLAG) reg.PC = rel(reg, cpu_mem);
+			else reg.PC++;
+		}
+
+		// bne: Zフラグがクリアされている場合，アドレッシングモードrelにより指定される分岐先のアドレスをPCレジスタに格納
+		//      そうでない場合，次の命令のアドレスをPCレジスタに格納
+		void bne(struct Register& reg, vector<u8>& cpu_mem){
+			if(reg.P & ZERO_FLAG) reg.PC++;
+			else reg.PC = rel(reg, cpu_mem);
+		}
+
+		// bvc: Vフラグがクリアされていれば分岐
+		void bvc(struct Register& reg, vector<u8>& cpu_mem){
+			if(reg.P & OVERFLAW_FLAG) reg.PC++;
+			else reg.PC = rel(reg, cpu_mem);
+		}
+
+		// bvs: Vフラグがセットされていれば分岐
+		void bvs(struct Register& reg, vector<u8>& cpu_mem){
+			if(reg.P & OVERFLAW_FLAG) reg.PC = rel(reg, cpu_mem);
+			else reg.PC++;
+		}
+
+		//bpl: Nフラグがクリアされていれば分岐
+		void bpl(struct Register& reg, vector<u8>& cpu_mem){
+			if(reg.P & NEGATIVE_FLAG) reg.PC++;
+			else reg.PC = rel(reg, cpu_mem);
+		}
+
+		//bmi: Nフラグがセットされていれば分岐
+		void bmi(struct Register& reg, vector<u8>& cpu_mem){
+			if(reg.P & NEGATIVE_FLAG) reg.PC = rel(reg, cpu_mem);
+			else reg.PC++;
+		}
+
+		// ビット検査
+		// bit: メモリのデータをAレジスタでテスト
+	    // A and M の結果でZフラグをセットし，Mのビット7をNへ，ビット6をVフラグへ転送(TODO: ビット6をVフラグへ転送の部分)
+		void bit(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1, u8_2;
+			
+			u8_1 = read(addr, cpu_mem);
+			u8_2 = u8_1 & reg.A;
+			check_zero_flag_u8(u8_2, reg);
+			check_negative_flag_u8(u8_1, reg);
+			if(u8_1 & 0b01000000) reg.P |= OVERFLAW_FLAG;
+			else reg.P &= ~OVERFLAW_FLAG;
+		}
+
+		// ジャンプ
+		// jmp: 指定したアドレスをPCレジスタに格納
+		void jmp(struct Register& reg, u16& addr){
+			reg.PC = addr;
+		}
+
+		// jsr: サブルーチンへジャンプ
+		//      ジャンプ先のアドレスをアドレス指定によって取得した後，PCを上位バイト，下位バイトの順で
+		//      スタックへプッシュ．このときのPCはjsrの最後のバイトアドレス，その後ジャンプ先へジャンプ
+		void jsr(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1, u8_2;
+			u16 u16_1;
+
+			u16_1 = reg.PC - 1;
+			
+			u8_1 = static_cast<u8>(u16_1);
+			//cout << "u8_1: " << hex << +u8_1 << endl;
+			u16_1 >>= 8;
+			u8_2 = static_cast<u8>(u16_1);
+			//cout << "u8_2: " << hex << +u8_2 << endl;
+			stack_push(reg, u8_2, cpu_mem);
+			stack_push(reg, u8_1, cpu_mem);
+			reg.PC = addr;
+		}
+
+		// rts: サブルーチンから復帰
+		//      復帰アドレスをスタックから，下位バイト，上位バイトの順にポップしたのちインクリメント
+		void rts(struct Register& reg, vector<u8>& cpu_mem){
+			u8 u8_1=0, u8_2=0;
+
+			stack_pop(reg, u8_1, cpu_mem);
+			stack_pop(reg, u8_2, cpu_mem);
+			//cout << "u8_1: " << hex << +u8_1 << endl;
+			//cout << "u8_2: " << hex << +u8_2 << endl;
+			reg.PC = static_cast<u16>(u8_2);
+			reg.PC <<= 8;
+			reg.PC |= static_cast<u16>(u8_1);
+			reg.PC++;
+		}
+
+		// 割り込み
+		// brk: ソフトウェア割り込みを発生
+		void brk(struct Register& reg, vector<u8>& cpu_mem){
+			u8 u8_1;
+
+			if(!(reg.P | INTERRUPT_FLAG)){
+				reg.P |= BREAK_FLAG;
+				reg.PC++;
+				u8_1 = static_cast<u8>(reg.PC);
+				stack_push(reg, u8_1, cpu_mem);
+				reg.PC >>= 8;
+				u8_1 = static_cast<u8>(reg.PC);
+				stack_push(reg, u8_1, cpu_mem);
+				stack_push(reg, reg.P, cpu_mem);
+				reg.P |= INTERRUPT_FLAG;
+				u8_1 = read(0xfffe, cpu_mem);
+				reg.PC = static_cast<u16>(u8_1);
+				reg.PC <<= 8;
+				u8_1 = read(0xffff, cpu_mem);
+				reg.PC |= static_cast<u16>(u8_1);
+			}
+		}
+		// rti: 割り込みから復帰
+		//      スタックから，ステータスレジスタ，PCの下位バイト，上位バイトの順にポップ
+		void rti(struct Register& reg, vector<u8>& cpu_mem){
+			u8 u8_1=0;
+
+			stack_pop(reg, reg.P, cpu_mem);
+			stack_pop(reg, u8_1, cpu_mem);
+			reg.PC = static_cast<u16>(u8_1);
+			reg.PC <<= 8;
+			stack_pop(reg, u8_1, cpu_mem);
+			reg.PC |= static_cast<u16>(u8_1);
+		}
+
+		// 比較
+		// cmp: Aレジスタの値と指定したアドレスの値を比較
+		void cmp(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+			u16 u16_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u8_1 = ~u8_1;
+			u16_1 = static_cast<u16>(reg.A) + static_cast<u16>(u8_1) + 1;
+			u8_1 = static_cast<u8>(u16_1);
+			check_negative_flag_u8(u8_1, reg);
+			check_zero_flag_u8(u8_1, reg);
+			check_carry_flag(u16_1, reg);
+		}
+
+		// cpx: Xレジスタと指定したアドレスの値を比較
+		void cpx(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+			u16 u16_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u8_1 = ~u8_1;
+			u16_1 = static_cast<u16>(reg.X) + static_cast<u16>(u8_1) + 1;
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			check_carry_flag(u16_1, reg);
+		}
+        
+		// cpy: Yレジスタと指定したアドレスの値を比較
+		void cpy(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+			u16 u16_1;
+		
+			u8_1 = read(addr, cpu_mem);
+			u8_1 = ~u8_1;
+			u16_1 = static_cast<u16>(reg.Y) + static_cast<u16>(u8_1) + 1;
+			check_negative_flag_u16(u16_1, reg);
+			check_zero_flag_u16(u16_1, reg);
+			check_carry_flag(u16_1, reg);
+		}
+		// インクリメント，デクリメント
+		// inc: 指定したアドレスの値を1加算
+		void inc(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u8_1++;
+			write(addr, u8_1, cpu_mem);
+			check_negative_flag_u8(u8_1, reg);
+			check_zero_flag_u8(u8_1, reg);
+		}
+
+		// dec: 指定したアドレスの値を1減算
+		void dec(struct Register& reg, u16& addr, vector<u8>& cpu_mem){
+			u8 u8_1;
+			u16 u16_1;
+
+			u8_1 = read(addr, cpu_mem);
+			u8_1 = ~u8_1;
+			u16_1 = static_cast<u16>(u8_1) + 1 + 1;
+			u8_1 = static_cast<u8>(u16_1);
+			check_negative_flag_u8(u8_1, reg);
+			check_zero_flag_u8(u8_1, reg);
+		}
+
+		// inx: Xレジスタに1を加算
+		void inx(struct Register& reg){
+			reg.X = reg.X + 1;
+			//cout << "reg.X: " << hex << +reg.X << endl;
+			check_negative_flag_u8(reg.X, reg);
+			check_zero_flag_u8(reg.X, reg);
+		}
+
+		// dex: Xレジスタを1減算
+		void dex(struct Register& reg){
+			u8 u8_1;
+			u16 u16_1;
+
+			u8_1 = 0b11111110;
+			u16_1 = static_cast<u16>(reg.X) + u8_1 + 1;
+			u8_1 = static_cast<u8>(u16_1);
+			check_negative_flag_u8(reg.X, reg);
+			check_zero_flag_u8(reg.X, reg);
+		}
+
+		// iny: Yレジスタに1を加算
+		void iny(struct Register& reg){
+			reg.Y = reg.Y + 1;
+			check_negative_flag_u8(reg.Y, reg);
+			check_zero_flag_u8(reg.Y, reg);
+		}
+
+		// dey: Yレジスタを1減算
+		void dey(struct Register& reg){
+			u8 u8_1;
+			u16 u16_1;
+
+			u8_1 = 0b11111110;
+			u16_1 = static_cast<u16>(reg.Y) + static_cast<u16>(u8_1) + 1;
+			reg.Y = static_cast<u8>(u16_1);
+			check_negative_flag_u8(reg.Y, reg);
+			check_zero_flag_u8(reg.Y, reg);
+		}
+
+		// フラグ操作
+		// clc: Carryフラグをクリア
+		void clc(struct Register& reg){
+			reg.P &= ~CARRY_FLAG;
+		}
+
+		// sec: Carryフラグをセット
+		void sec(struct Register& reg){
+			reg.P |= CARRY_FLAG;
+		}
+
+		// cli: 割り込みフラグをクリア
+		void cli(struct Register& reg){
+			reg.P &= ~INTERRUPT_FLAG;
+		}
+
+		//sei: ステータスレジスタのビット2 (割り込みフラグ) に1をセット
 		void sei(struct Register& reg){
 			reg.P = reg.P | INTERRUPT_FLAG;
+		}
+
+		// cld: Decimalフラグをクリア
+		void cld(struct Register& reg){
+			reg.P &= ~DECIMAL_FLAG;
+		}
+
+		// sed: Decimalフラグをセット
+		void sed(struct Register& reg){
+			reg.P |= DECIMAL_FLAG;
+		}
+
+		// clv: オーバフローフラグをクリア
+		void clv(struct Register& reg){
+			reg.P &= ~OVERFLAW_FLAG; 
+		}
+
+		// ロード
+		// lda: 指定したアドレスに格納されている値をAレジスタにロード
+		void lda(struct Register& reg, u16& addr, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
+			if(addr == 0x2007) ppu_read(cpu_mem, ppu_mem, reg.A);
+			else {
+				reg.A = read(addr, cpu_mem);
+			}
+			check_negative_flag_u8(reg.A, reg);
+			check_zero_flag_u8(reg.A, reg);
 		}
 
 		//ldx: 指定したアドレスに格納されている値をXレジスタにロード
 		void ldx(struct Register& reg, u16& addr, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
 			if(addr == 0x2007) ppu_read(cpu_mem, ppu_mem, reg.X);
 			else reg.X = read(addr, cpu_mem);
-		}
-
-		//txs: Xレジスタの値をSレジスタの下位アドレスにロード
-		void txs(struct Register& reg){
-			reg.S = reg.X;
-		}
-
-		// lda: 指定したアドレスに格納されている値をAレジスタにロード
-		void lda(struct Register& reg, u16& addr, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
-			if(addr == 0x2007) ppu_read(cpu_mem, ppu_mem, reg.A);
-			else {
-				reg.A = read(addr, cpu_mem);
-				cout << setfill('0') << right << setw(2) << "reg.A = " << hex << +reg.A << endl;;
-			}
-		}
-
-		// sta: 指定したアドレスにAレジスタの値を格納
-		void sta(struct Register& reg, u16& addr, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
-			if(addr == 0x2006) ppu_addr(cpu_mem, reg, reg.A);
-			else if(addr == 0x2007) ppu_write(cpu_mem, ppu_mem, reg.A);
-			else write(addr, reg.A, cpu_mem);
+			check_negative_flag_u8(reg.X, reg);
+			check_zero_flag_u8(reg.X, reg);
 		}
 
 		// ldy: 指定したアドレスに格納されている値をYレジスタにロード
 		void ldy(struct Register& reg, u16& addr, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
 			if(addr == 0x2007) ppu_read(cpu_mem, ppu_mem, reg.Y);
 			else reg.Y = read(addr, cpu_mem);
+		    check_negative_flag_u8(reg.Y, reg);
+			check_zero_flag_u8(reg.Y, reg);
+		} 
+
+		// ストア
+	    // sta: 指定したアドレスにAレジスタの値を格納
+		void sta(struct Register& reg, u16& addr, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
+			if(addr == 0x2006) ppu_addr(cpu_mem, reg, reg.A);
+			else if(addr == 0x2007) ppu_write(cpu_mem, ppu_mem, reg.A);
+			else write(addr, reg.A, cpu_mem);
 		}
 
-		// inx: Xレジスタに1を加算
-		void inx(struct Register& reg){
-			reg.X = reg.X + 1;
-			cout << "reg.X: " << hex << +reg.X << endl;
-			check_zero_flag(reg.X);
+		//stx: 指定したアドレスにXレジスタの値を格納
+		void stx(struct Register& reg, u16& addr, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
+			if(addr == 0x2006) ppu_addr(cpu_mem, reg, reg.X);
+			else if(addr == 0x2007) ppu_write(cpu_mem, ppu_mem, reg.X);
+			else write(addr, reg.X, cpu_mem);
 		}
 
-		// dey: Yレジスタを1減算
-		void dey(struct Register& reg){
-			u16 u16_1;
-
-			cout << "before reg.Y: " << hex << +reg.Y << endl;
-			u16_1 = static_cast<u16>(reg.Y) + static_cast<u16>(0b11111111);
-			reg.Y  = static_cast<u8>(u16_1);
-			//if(reg.Y == 0) reg.P = reg.P | 0b00000010;
-			check_zero_flag(reg.Y, reg);
-			cout << "after reg.Y: " << hex << +reg.Y << endl;
+		//sty: 指定したアドレスにYレジスタの値を格納
+		void sty(struct Register& reg, u16& addr, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
+			if(addr == 0x2006) ppu_addr(cpu_mem, reg, reg.Y);
+			else if(addr == 0x2007) ppu_write(cpu_mem, ppu_mem, reg.Y);
+			else write(addr, reg.Y, cpu_mem);
 		}
 
-		// bne: Zフラグがクリアされている場合，アドレッシングモードrelにより指定される分岐先のアドレスをPCレジスタに格納
-		//      そうでない場合，次の命令のアドレスをPCレジスタに格納
-		void bne(struct Register& reg, vector<u8>& cpu_mem){
-			if((reg.P & 0b00000010) != 0){
-				reg.PC++;
-			}
-			else {
-				reg.PC = rel(reg, cpu_mem);
-			}
+		// レジスタ間転送
+		// tax: Aレジスタの値をXレジスタに転送
+		void tax(struct Register& reg){
+			reg.X = reg.A;
+			check_negative_flag_u8(reg.X, reg);
+			check_zero_flag_u8(reg.X, reg);
 		}
 
-		// jmp: 指定したアドレスをPCレジスタに格納
-		void jmp(struct Register& reg, u16& addr){
-			reg.PC = addr;
+		// txa: Xレジスタの値をAレジスタに転送
+		void txa(struct Register& reg){
+			reg.A = reg.X;
+			check_negative_flag_u8(reg.A, reg);
+			check_zero_flag_u8(reg.A, reg);
 		}
+
+		// tay: Aレジスタの値をYレジスタに転送
+		void tay(struct Register& reg){
+			reg.Y = reg.A;
+			check_negative_flag_u8(reg.Y, reg);
+			check_zero_flag_u8(reg.Y, reg);
+		}
+
+		// tya: Yレジスタの値をAレジスタに転送
+		void tya(struct Register& reg){
+			reg.A = reg.Y;
+			check_negative_flag_u8(reg.A, reg);
+			check_zero_flag_u8(reg.A, reg);
+		}
+
+		// tsx: SPレジスタの値をXレジスタに転送
+		void tsx(struct Register& reg){
+			reg.X = reg.SP;
+			check_negative_flag_u8(reg.X, reg);
+			check_zero_flag_u8(reg.X, reg);
+		}
+
+		//txs: Xレジスタの値をSPレジスタの下位アドレスにロード
+		void txs(struct Register& reg){
+			reg.SP = reg.X;
+		}
+
+
+		// スタック
+		// pha: Aレジスタの値をスタックへプッシュ
+		void pha(struct Register& reg, vector<u8>& cpu_mem){
+			stack_push(reg, reg.A, cpu_mem);
+		}
+
+		// pla: スタックの値をAレジスタに格納
+		void pla(struct Register& reg, vector<u8>& cpu_mem){
+			stack_pop(reg, reg.A, cpu_mem);
+			reg.A |= BREAK_FLAG;
+			check_negative_flag_u8(reg.A, reg);
+			check_zero_flag_u8(reg.A, reg);
+		}
+
+		// php: ステータスレジスタの値をスタックへプッシュ
+		void php(struct Register& reg, vector<u8>& cpu_mem){
+			stack_push(reg, reg.P, cpu_mem);
+		}
+
+		// plp: スタックの値をステータスレジスタに格納
+		void plp(struct Register& reg, vector<u8>& cpu_mem){
+			stack_pop(reg, reg.P, cpu_mem);
+			reg.P &= ~BREAK_FLAG;
+		}
+
 
 		char exec(struct Register& reg, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
 			u8 operand;
-			
+			u16 u16_1;
 			operand = fetch(reg, cpu_mem);
-			cout << "operand = " << hex << +operand << endl;
+			//cout << "operand = " << hex << +operand << endl;
 			
 			switch(operand){
-				case SEI_impl:
-				sei(reg);
-				break;
+				case BRK_impl:
+					break;
 
-				case LDX_imm:
-				// Load X from M M -> X
-				// アドレッシングモード (imm): 次のバイトのデータをXレジスタにロード
+				case ORA_Xind:
+					u16_1 = XInd(reg, cpu_mem);
+					ora(reg, u16_1, cpu_mem);
+					break;
+
+				case ORA_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					ora(reg, u16_1, cpu_mem);
+					break;
 				
-				//reg.X = read(reg.PC, cpu_mem);
-				ldx(reg, reg.PC, cpu_mem, ppu_mem);
+				case ASL_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					asl(reg, u16_1, cpu_mem);
+					break;
 				
-				reg.PC++;
-				break;
+				case PHP_impl:
+					php(reg, cpu_mem);
+					break;
 
-				case LDX_zpg:
-				// Load X from M M -> X
-				// アドレッシングモード (ZPG): 0x00を上位アドレス，オペコードの次の番地に格納された値を下位アドレスとした番地
-				// のデータをXレジスタにロード
+				case ORA_imm:
+					u16_1 = reg.PC;
+					ora(reg, u16_1, cpu_mem);
+					reg.PC++;
+					break;
 
-				u16_a = zpg(reg, cpu_mem);
-				ldx(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case ORA_abs:
+					u16_1 = abs(reg, cpu_mem);
+					ora(reg, u16_1, cpu_mem);
+					break;
 
-				case LDX_abs:
-				// Load X from M M -> X
-				// アドレッシングモード（abs）: オペコードの次のアドレスに格納された値を下位アドレス，その次のアドレスに格納された値を上位
-				//                            アドレスとした番地のデータをXレジスタにロード
+				case ASL_abs:
+					u16_1 = abs(reg, cpu_mem);
+					asl(reg, u16_1, cpu_mem);
+					break;
 
-				u16_a = abs(reg, cpu_mem);
-				ldx(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case BPL_rel:
+ 					bpl(reg, cpu_mem);
+					break;
 
-				case TXS_impl:
+				case ORA_indY:
+					u16_1 = IndY(reg, cpu_mem);
+					ora(reg, u16_1, cpu_mem);
+					break;
+
+				case ORA_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					ora(reg, u16_1, cpu_mem);
+					break;
+
+				case ASL_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					asl(reg, u16_1, cpu_mem);
+					break;
+
+				case CLC_impl:
+					clc(reg);
+					break;
+
+				case ORA_absY:
+					u16_1 = absY(reg, cpu_mem);
+					ora(reg, u16_1, cpu_mem);
+					break;
+
+				case ORA_absX:
+					u16_1 = absX(reg, cpu_mem);
+					ora(reg, u16_1, cpu_mem);
+					break;
+
+				case ASL_absX:
+					u16_1 = absX(reg, cpu_mem);
+					asl(reg, u16_1, cpu_mem);
+					break;
+
+				case JSR_abs:
+					u16_1 = abs(reg, cpu_mem);
+					jsr(reg, u16_1, cpu_mem);
+					break;
+
+				case AND_Xind:
+					u16_1 = XInd(reg, cpu_mem);
+					and_op(reg, u16_1, cpu_mem);
+					break;
+
+				case BIT_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					bit(reg, u16_1, cpu_mem);
+					break;
+
+				case AND_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					and_op(reg, u16_1, cpu_mem);
+					break;
+
+				case ROL_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					rol(reg, u16_1, cpu_mem);
+					break;
+
+				case PLP_impl:
+					plp(reg, cpu_mem);
+					break;
+
+				case AND_imm:
+					and_op(reg, reg.PC, cpu_mem);
+					reg.PC++;
+					break;
+
+				case ROL_A:
+					rol_a(reg);
+					break;
+
+				case BIT_abs:
+					u16_1 = abs(reg, cpu_mem);
+					bit(reg, u16_1, cpu_mem);
+					break;
+
+				case AND_abs:
+					u16_1 = abs(reg, cpu_mem);
+					and_op(reg, u16_1, cpu_mem);
+					break;
+
+				case ROL_abs:
+					u16_1 = abs(reg, cpu_mem);
+					rol(reg, u16_1, cpu_mem);
+					break;
+
+				case BMI_rel:
+					bmi(reg, cpu_mem);
+					break;
+
+				case AND_indY:
+					u16_1 = IndY(reg, cpu_mem);
+					and_op(reg, u16_1, cpu_mem);
+					break;
+
+				case AND_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					and_op(reg, u16_1, cpu_mem);
+					break;
+
+				case ROL_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					rol(reg, u16_1, cpu_mem);
+					break;
+
+				case SEC_impl:
+					sec(reg);
+					break;
+
+				case AND_absY:
+					u16_1 = absY(reg, cpu_mem);
+					and_op(reg, u16_1, cpu_mem);
+					break;
+
+				case AND_absX:
+					u16_1 = absX(reg, cpu_mem);
+					and_op(reg, u16_1, cpu_mem);
+					break;
+
+				case ROL_absX:
+					u16_1 = absX(reg, cpu_mem);
+					rol(reg, u16_1, cpu_mem);
+					break;
+
+				case RTI_impl:
+					rti(reg, cpu_mem);
+					break;
+
+				case EOR_Xind:
+					u16_1 = XInd(reg, cpu_mem);
+					eor(reg, u16_1, cpu_mem);
+					break;
+
+				case EOR_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					eor(reg, u16_1, cpu_mem);
+					break;
+
+				case LSR_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					lsr(reg, u16_1, cpu_mem);
+					break;
+
+				case PHA_impl:
+					pha(reg, cpu_mem);
+					break;
+
+				case EOR_imm:
+					eor(reg, reg.PC, cpu_mem);
+					reg.PC++;
+					break;
+
+				case LSR_A:
+					lsr_a(reg);
+					break;
+				case JMP_abs:
+					u16_1 = abs(reg, cpu_mem);
+					jmp(reg, u16_1);
+					break;
+
+				case EOR_abs:
+					u16_1 = abs(reg, cpu_mem);
+					eor(reg, u16_1, cpu_mem);
+					break;
+
+				case LSR_abs:
+					u16_1 = abs(reg, cpu_mem);
+					lsr(reg, u16_1, cpu_mem);
+					break;
+
+				case BVC_rel:
+					bvc(reg, cpu_mem);
+					break;
+
+				case EOR_indY:
+					u16_1 = IndY(reg, cpu_mem);
+					eor(reg, u16_1, cpu_mem);
+					break;
+
+				case EOR_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					eor(reg, u16_1, cpu_mem);
+					break;
+
+				case LSR_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					lsr(reg, u16_1, cpu_mem);
+					break;
+
+				case CLI_impl:
+					cli(reg);
+					break;
+
+				case EOR_absY:
+					u16_1 = absY(reg, cpu_mem);
+					eor(reg, u16_1, cpu_mem);
+					break;
+
+				case EOR_absX:
+					u16_1 = absX(reg, cpu_mem);
+					eor(reg, u16_1, cpu_mem);
+					break;
+
+				case LSR_absX:
+					u16_1 = absX(reg, cpu_mem);
+					lsr(reg, u16_1, cpu_mem);
+					break;
+
+				case RTS_impl:
+					rts(reg, cpu_mem);
+					break;
+
+				case ADC_Xind:
+					u16_1 = XInd(reg, cpu_mem);
+					adc(reg, u16_1, cpu_mem);
+					break;
+
+				case ADC_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					adc(reg, u16_1, cpu_mem);
+					break;
+
+				case ROR_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					ror(reg, u16_1, cpu_mem);
+					break;
+
+				case PLA_impl:
+					pla(reg, cpu_mem);
+					break;
+
+				case ADC_imm:
+					adc(reg, reg.PC, cpu_mem);
+					reg.PC++;
+					break;
+
+				case ROR_A:
+					ror_a(reg);
+					break;
+
+				case JMP_ind:
+					u16_1 = Ind(reg, cpu_mem);
+					jmp(reg, u16_1);
+					break;
+
+				case ADC_abs:
+					u16_1 = abs(reg, cpu_mem);
+					adc(reg, u16_1, cpu_mem);
+					break;
+
+				case ROR_abs:
+					u16_1 = abs(reg, cpu_mem);
+					ror(reg, u16_1, cpu_mem);
+					break;
+
+				case BVS_rel:
+					bvs(reg, cpu_mem);
+					break;
+
+				case ADC_indY:
+					u16_1 = IndY(reg, cpu_mem);
+					adc(reg, u16_1, cpu_mem);
+					break;
+
+				case ADC_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					adc(reg, u16_1, cpu_mem);
+					break;
+
+				case ROR_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					ror(reg, u16_1, cpu_mem);
+					break;
+
+				case SEI_impl://0x78
+					sei(reg);
+					break;
+
+				case ADC_absY:
+					u16_1 = absY(reg, cpu_mem);
+					adc(reg, u16_1, cpu_mem);
+					break;
+
+				case ADC_absX:
+					u16_1 = absX(reg, cpu_mem);
+					adc(reg, u16_1, cpu_mem);
+					break;
+
+				case ROR_absX:
+					u16_1 = absX(reg, cpu_mem);
+					ror(reg, u16_1, cpu_mem);
+					break;
+
+				// Store A to M A -> M
+				// アドレッシングモード（Xind）: (1) 0x00を上位アドレス，オペコードの次の番地に格納されている値を下位アドレスとした番地にレジスタXの値を加算
+				//                                (2) (1) の番地に格納されている値を下位アドレス，その次の番地に格納されている値を上位アドレスとした番地に
+				//                                    Aレジスタの値を書き込み
+				case STA_Xind://0x81
+					u16_1 = XInd(reg, cpu_mem);
+					sta(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case STY_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					sty(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				// Store A to M A -> M
+				// アドレッシングモード（zpg）: 0x00を上位アドレス，オペコードの次の番地に格納されている値を下位アドレスとした番地にAレジスタの値を書き込み
+				case STA_zpg://0x85
+					u16_1 = zpg(reg, cpu_mem);
+					sta(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case STX_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					stx(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case DEY_impl:
+					dey(reg);
+					//cout << "reg.Y: " << std::dec << +reg.Y << endl;
+					break;
+				case TXA_impl:
+					txa(reg);
+					break;
+
+				case STY_abs:
+					u16_1 = abs(reg, cpu_mem);
+					sty(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				// Store A to M A -> M
+				// アドレッシングモード（abs）: オペコードの次の番地に格納された値を下位アドレス，その次の番地に格納された値を上位アドレスとした番地に
+				//                             Aレジスタの値を書き込み
+				case STA_abs:
+					u16_1 = abs(reg, cpu_mem);
+					sta(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case STX_abs:
+					u16_1 = abs(reg, cpu_mem);
+					stx(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case BCC_rel:
+					bcc(reg, cpu_mem);
+					break;
+
+				// Store A to M A -> M
+				// アドレッシングモード（indY）: 0x00を上位アドレス，オペコードの次の番地に格納された値を下位アドレスとした番地の値を下位アドレス，
+				// その次の番地の値を上位アドレスとした番地にYレジスタの値を加算した番地にAレジスタの値を格納
+				case STA_indY:
+					u16_1 = IndY(reg, cpu_mem);
+					sta(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case STY_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					sty(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case STA_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					sta(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case STX_zpgY:
+				 	u16_1 = zpgY(reg, cpu_mem);
+					stx(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case TYA_impl:
+					tya(reg);
+					break;
+
+				case STA_absY:
+					u16_1 = absY(reg, cpu_mem);
+					sta(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+				
 				// Xレジスタの値をSレジスタ（スタックレジスタ）に格納
-				txs(reg);
-				break;
+				case TXS_impl://0x9A
+					txs(reg);
+					break;
 
-				case LDA_Xind:
+				case STA_absX:
+					u16_1 = absX(reg, cpu_mem);
+					sta(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case LDY_imm:
+					//reg.Y = read(reg.PC, cpu_mem);
+					ldy(reg, reg.PC, cpu_mem, ppu_mem);
+					reg.PC++;
+					break;
+
 				// Load A from M M -> A
 				// アドレッシングモード（X, ind）:(1) 0x00を上位アドレス，オペコードの次の番地に格納された値を下位アドレスとした番地にレジスタX
 				//                                  の値を加算
 				//                               (2) 加算した値の番地に格納された値を下位アドレス，その次の番地に格納された値を上位アドレスとし
 				//								    た番地に格納された値をAレジスタにロード
+				case LDA_Xind://0xA1
+					u16_1 = XInd(reg, cpu_mem);
+					lda(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				u16_a = XInd(reg, cpu_mem);
-				lda(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				// Load X from M M -> X
+				// アドレッシングモード (imm): 次のバイトのデータをXレジスタにロード
+				case LDX_imm://0xA6
+					//reg.X = read(reg.PC, cpu_mem);
+					ldx(reg, reg.PC, cpu_mem, ppu_mem);
+					reg.PC++;
+					break;
 
-				case LDA_zpg:
+				case LDY_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					ldy(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+
 				// Load A from M M -> A
 				// アドレッシングモード（zpg）: 0x00を上位アドレス，オペコードの次の番地に格納された値を下位アドレスとした番地に格納された値を
 				// Aレジスタにロード
+				case LDA_zpg://0xA5
+					u16_1 = zpg(reg, cpu_mem);
+					lda(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				u16_a = zpg(reg, cpu_mem);
-				lda(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				// Load X from M M -> X
+				// アドレッシングモード (ZPG): 0x00を上位アドレス，オペコードの次の番地に格納された値を下位アドレスとした番地
+				// のデータをXレジスタにロード
+				case LDX_zpg://0xA2
+					u16_1 = zpg(reg, cpu_mem);
+					ldx(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				case LDA_imm:
+				case TAY_impl:
+					tay(reg);
+					break;
+
 				// Load A from M M -> A
 				// アドレッシングモード（imm）: オペコードの次のアドレスに格納された値をAレジスタにロード
 				//reg.A = read(reg.PC, cpu_mem);
-				lda(reg, reg.PC, cpu_mem, ppu_mem);
-				reg.PC++;
-				break;
+				case LDA_imm://0xA9
+					lda(reg, reg.PC, cpu_mem, ppu_mem);
+					reg.PC++;
+					break;
 
-				case LDA_abs:
+				case TAX_impl:
+					tax(reg);
+					break;
+
+				case LDY_abs:
+					u16_1 = abs(reg, cpu_mem);
+					ldy(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
 				// Load A from M M -> A
 				// アドレッシングモード（abs）: オペコードの次のアドレスに格納された値を下位アドレス，その次に格納された値を上位アドレスとした
 				// 番地の値をAレジスタにロード
+				case LDA_abs://0xAD
+					u16_1 = abs(reg, cpu_mem);
+					lda(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				u16_a = abs(reg, cpu_mem);
-				lda(reg, u16_a, cpu_mem, ppu_mem);
-				break;
-				
-				case LDA_indY:
+				// Load X from M M -> X
+				// アドレッシングモード（abs）: オペコードの次のアドレスに格納された値を下位アドレス，その次のアドレスに格納された値を上位
+				//                            アドレスとした番地のデータをXレジスタにロード
+				case LDX_abs://0xAE
+					u16_1 = abs(reg, cpu_mem);
+					ldx(reg, u16_1, cpu_mem, ppu_mem);
+					break;
+
+				case BCS_rel:
+					bcs(reg, cpu_mem);
+					break;
+
 				// Load A from M M -> A
 				// アドレッシングモード（indY）: 0x00を上位アドレス，オペコードの次の番地に格納された値を下位アドレスとした番地の値を下位アドレス
 				//                              その次の番地に格納されている値を上位アドレスとした番地にYレジスタを加算した番地に格納されている
 				//                              値をAレジスタにロード
+				case LDA_indY://0xB1
+					u16_1 = IndY(reg, cpu_mem);
+					lda(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				u16_a = IndY(reg, cpu_mem);
-				lda(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case LDY_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					ldy(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				case LDA_zpgX:
 				// Load A from M M -> A
 				// アドレッシングモード（zpgX）: 0x00を上位アドレス，オペコードの次の番地に格納された値にXレジスタの値を加算した値を下位アドレスとし
 				// た番地に格納されている値をAレジスタにロード
+				case LDA_zpgX://0xB5
+					u16_1 = zpgX(reg, cpu_mem);
+					lda(reg, u16_1, cpu_mem, ppu_mem);
+					break; 
 
-				u16_a = zpgX(reg, cpu_mem);
-				lda(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case LDX_zpgY:
+					u16_1 = zpgY(reg, cpu_mem);
+					ldx(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				case LDA_absY:
+				case CLV_impl:
+					clv(reg);
+					break;
+
 				// Load A from M M -> A
 				// アドレッシングモード（absY）: (1) オペコードの次の番地に格納された値を下位アドレス，その次の番地に格納された値を上位アドレスとする．
 				//                              (2) (1) の番地にYレジスタの値を加算した番地に格納されている値をAレジスタにロード
-				
-				u16_a = absY(reg, cpu_mem);
-				lda(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case LDA_absY://0xB9
+					u16_1 = absY(reg, cpu_mem);
+					lda(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				case LDA_absX:
-				// Load A from M M -> A
-				// アドレッシングモード（absX）: (1) オペコードの次の番地に格納された値を下位アドレス，その次の番地に格納された値を上位アドレスとする．
-				//                              (2) (1) の番地にXレジスタの値を加算した番地に格納されている値をAレジスタにロード
+				case TSX_impl:
+					tsx(reg);
+					break;
 
-				u16_a = absX(reg, cpu_mem);
-				cout << "lda_absx address: " << hex << +u16_a << endl;
-				lda(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case LDY_absX:
+					u16_1 = absX(reg, cpu_mem);
+					ldy(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				case STA_Xind:
-				// Store A to M A -> M
-				// アドレッシングモード（Xind）: (1) 0x00を上位アドレス，オペコードの次の番地に格納されている値を下位アドレスとした番地にレジスタXの値を加算
-				//                                (2) (1) の番地に格納されている値を下位アドレス，その次の番地に格納されている値を上位アドレスとした番地に
-				//                                    Aレジスタの値を書き込み
+				case LDA_absX://0xBD
+					u16_1 = absX(reg, cpu_mem);
+					// cout << "lda_absx address: " << hex << +u16_a << endl;
+					lda(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				u16_a = XInd(reg, cpu_mem);
-				sta(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case LDX_absY:
+					u16_1 = absY(reg, cpu_mem);
+					ldx(reg, u16_1, cpu_mem, ppu_mem);
+					break;
 
-				case STA_zpg:
-				// Store A to M A -> M
-				// アドレッシングモード（zpg）: 0x00を上位アドレス，オペコードの次の番地に格納されている値を下位アドレスとした番地にAレジスタの値を書き込み
+				case CPY_imm:
+					cpy(reg, reg.PC, cpu_mem);
+					reg.PC++;
+					break;
 
-				u16_a = zpg(reg, cpu_mem);
-				sta(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case CMP_Xind:
+					u16_1 = XInd(reg, cpu_mem);
+					cmp(reg, u16_1, cpu_mem);
+					break;
 
-				case STA_abs:
-				// Store A to M A -> M
-				// アドレッシングモード（abs）: オペコードの次の番地に格納された値を下位アドレス，その次の番地に格納された値を上位アドレスとした番地に
-				//                             Aレジスタの値を書き込み
+				case CPY_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					cpy(reg, u16_1, cpu_mem);
+					break;
 
-				u16_a = abs(reg, cpu_mem);
-				sta(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case CMP_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					cmp(reg, u16_1, cpu_mem);
+					break;
 
-				case STA_indY:
-				// Store A to M A -> M
-				// アドレッシングモード（indY）: 0x00を上位アドレス，オペコードの次の番地に格納された値を下位アドレスとした番地の値を下位アドレス，
-				// その次の番地の値を上位アドレスとした番地にYレジスタの値を加算した番地にAレジスタの値を格納
+				case DEC_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					dec(reg, u16_1, cpu_mem);
+					break;
 
-				u16_a = IndY(reg, cpu_mem);
-				sta(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case INY_impl:
+					iny(reg);
+					break;
 
-				case STA_zpgX:
+				case CMP_imm:
+					cmp(reg, reg.PC, cpu_mem);
+					reg.PC++;
+					break;
 
-				u16_a = zpgX(reg, cpu_mem);
-				sta(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case DEX_impl:
+					dex(reg);
+					break;
 
-				case STA_absY:
+				case CPY_abs:
+					u16_1 = abs(reg, cpu_mem);
+					cpy(reg, u16_1, cpu_mem);
+					break;
 
-				u16_a = absY(reg, cpu_mem);
-				sta(reg, u16_a, cpu_mem, ppu_mem);
-				break;
+				case CMP_abs:
+					u16_1 = abs(reg, cpu_mem);
+					cmp(reg, u16_1, cpu_mem);
+					break;
 
-				case STA_absX:
-
-				u16_a = absX(reg, cpu_mem);
-				sta(reg, u16_a, cpu_mem, ppu_mem);
-				break;
-
-				case LDY_imm:
-				
-				//reg.Y = read(reg.PC, cpu_mem);
-				ldy(reg, reg.PC, cpu_mem, ppu_mem);
-				reg.PC++;
-				break;
-
-				case LDY_zpg:
-
-				u16_a = zpg(reg, cpu_mem);
-				ldy(reg, u16_a, cpu_mem, ppu_mem);
-				break;
-
-				case LDY_abs:
-
-				u16_a = absX(reg, cpu_mem);
-				ldy(reg, u16_a, cpu_mem, ppu_mem);
-				break;
-
-				case INX_impl:
-
-				inx(reg);
-				break;
-
-				case DEY_impl:
-
-				dey(reg);
-				break;
+				case DEC_abs:
+					u16_1 = abs(reg, cpu_mem);
+					dec(reg, u16_1, cpu_mem);
+					break;
 
 				case BNE_rel:
+					bne(reg, cpu_mem);
+					break;
 
-				bne(reg, cpu_mem);
-				break;
+				case CMP_indY:
+					u16_1 = IndY(reg, cpu_mem);
+					cmp(reg, u16_1, cpu_mem);
+					break;
 
-				case JMP_abs:
+				case CMP_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					cmp(reg, u16_1, cpu_mem);
+					break;
 
-				u16_a = abs(reg, cpu_mem);
-				jmp(reg, u16_a);
-				break;
+				case DEC_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					dec(reg, u16_1, cpu_mem);
+					break;
 
-				case JMP_ind:
-				
-				u16_a = Ind(reg, cpu_mem);
-				jmp(reg, u16_a);
-				break;
+				case CLD_impl:
+					cld(reg);
+					break;
+
+				case CMP_absY:
+					u16_1 = absY(reg, cpu_mem);
+					cmp(reg, u16_1, cpu_mem);
+					break;
+
+				case CMP_absX:
+					u16_1 = absX(reg, cpu_mem);
+					cmp(reg, u16_1, cpu_mem);
+					break;
+
+				case DEC_absX:
+					u16_1 = absX(reg, cpu_mem);
+					dec(reg, u16_1, cpu_mem);
+					break;
+
+				case CPX_imm:
+					cpx(reg, reg.PC, cpu_mem);
+					reg.PC++;
+					break;
+
+				case SBC_Xind:
+					u16_1 = XInd(reg, cpu_mem);
+					sbc(reg, u16_1, cpu_mem);
+					break;
+
+				case CPX_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					cpx(reg, u16_1, cpu_mem);
+					break;
+				case SBC_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+					sbc(reg, u16_1, cpu_mem);
+					break;
+
+				case INC_zpg:
+					u16_1 = zpg(reg, cpu_mem);
+
+					break;
+				case INX_impl:
+					inx(reg);
+					break;
+
+				case SBC_imm:
+					sbc(reg, reg.PC, cpu_mem);
+					reg.PC++;
+					break;
+
+				case NOP_impl:
+					break;
+
+				case CPX_abs:
+					u16_1 = abs(reg, cpu_mem);
+					cpx(reg, u16_1, cpu_mem);
+					break;
+
+				case SBC_abs:
+					u16_1 = abs(reg, cpu_mem);
+					sbc(reg, u16_1, cpu_mem);
+					break;
+
+				case INC_abs:
+					u16_1 = abs(reg, cpu_mem);
+					inc(reg, u16_1, cpu_mem);
+					break;
+
+				case BEQ_rel:
+					beq(reg, cpu_mem);
+					break;
+
+				case SBC_indY:
+					u16_1 = IndY(reg, cpu_mem);
+					sbc(reg, u16_1, cpu_mem);
+					break;
+
+				case SBC_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					sbc(reg, u16_1, cpu_mem);
+					break;
+
+				case INC_zpgX:
+					u16_1 = zpgX(reg, cpu_mem);
+					inc(reg, u16_1, cpu_mem);
+					break;
+
+				case SED_impl:
+					sed(reg);
+					break;
+
+				case SBC_absY:
+					u16_1 = absY(reg, cpu_mem);
+					sbc(reg, u16_1, cpu_mem);
+					break;
+
+				case SBC_absX:
+					u16_1 = absX(reg, cpu_mem);
+					sbc(reg, u16_1, cpu_mem);
+					break;
+
+				case INC_absX:
+					u16_1 = absX(reg, cpu_mem);
+					inc(reg, u16_1, cpu_mem);
+					break;
 
 				default:
-					if(operand != 0) cout << "unknown cpu_mem: " << setfill('0') << right << setw(2) << hex << +operand << " " << "reg.PC: " << reg.PC << endl;
-
+					cout << "unknown cpu_mem: " << setfill('0') << right << setw(2) << hex << +operand << " " << "reg.PC: " << reg.PC << endl;
 				//
 				//	cout << setfill('0') << right << setw(2) << hex << +operand << endl;
 			}
@@ -840,32 +1909,32 @@ typedef unsigned short int u16;
 
 		void reset(struct Register& reg, vector<u8>& cpu_mem) {
 			u8 u8_1, u8_2;
+			u16 u16_1;
+			
 			reg.regreset();
 			//cpu_mem.at(0x2000) = 1;
 			u8_1 = read(0xFFFC, cpu_mem);
 			//cout << hex << u8_1 << endl;
 			u8_2 = read(0xFFFD, cpu_mem);
 			//cout << hex << u8_2 << endl;
-			u16_a = static_cast<u16>(u8_2);
-			u16_a = u16_a << 8;
-			u16_a = u16_a | u8_1;
-			reg.PC = read(u16_a, cpu_mem);	
+			u16_1 = static_cast<u16>(u8_2);
+			u16_1 = u16_1 << 8;
+			u16_1 = u16_1 | u8_1;
+			reg.PC = read(u16_1, cpu_mem);	
 		}
 
 		void run(struct Register& reg, vector<u8>& cpu_mem, vector<u8>& ppu_mem){
-			int cnt=0, cycle=0;
+			int cpu_cycle=0;
+
 			while(1){
-				//cout << hex << +reg.PC << endl;
 				if(reg.PC == 0xffff){
-					cycle += exec(reg, cpu_mem, ppu_mem);
+					cpu_cycle += exec(reg, cpu_mem, ppu_mem);
+					cout << "0xC002: " << hex << +cpu_mem[0xC002] << endl;
+					cout << "0xC003: " << hex << +cpu_mem[0xC003] << endl;
 					return;
 				}
-				if(cnt == 200) return;
-
-				cout << hex << reg.PC << endl;
-				cycle += exec(reg, cpu_mem, ppu_mem);
-				cout << dec << +cycle << endl;
-				cnt++;
+				cpu_cycle += exec(reg, cpu_mem, ppu_mem);
+				if(cpu_cycle > 114) return; 
 			}	
 		}
 	};
